@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm --filter @haus/shared build && tsc -b && vite build",
+    "build": "pnpm --filter @haus/shared build && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build",
     "dev": "vite",
     "test": "pnpm --filter @haus/shared build && vitest run"
   },

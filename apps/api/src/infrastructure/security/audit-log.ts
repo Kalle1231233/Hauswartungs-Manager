@@ -1,6 +1,5 @@
-import type { Prisma } from "@prisma/client";
-
 import { prisma } from "../database/prisma.js";
+import type { Prisma } from "../../generated/prisma/client.js";
 
 type AuditInput = {
   organizationId?: string | null;

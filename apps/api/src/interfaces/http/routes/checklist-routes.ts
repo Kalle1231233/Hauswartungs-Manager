@@ -1,5 +1,7 @@
 import { Router } from "express";
 
+import { z } from "zod";
+
 import {
   checklistSubmitSchema,
   checklistTemplateCreateSchema
@@ -16,6 +18,10 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { getRequestContext } from "../utils/request-context.js";
 
 export const checklistRouter = Router();
+
+const checklistInstanceParamSchema = z.object({
+  checklistInstanceId: z.string().cuid()
+});
 
 checklistRouter.use(authenticate);
 
@@ -43,9 +49,10 @@ checklistRouter.post(
   authorize("ORG_ADMIN", "SUPER_ADMIN", "TECHNICIAN", "SERVICE_PROVIDER"),
   asyncHandler(async (request, response) => {
     const input = checklistSubmitSchema.parse(request.body);
+    const { checklistInstanceId } = checklistInstanceParamSchema.parse(request.params);
     const instance = await submitChecklistInstance(
       getRequestContext(request),
-      request.params.checklistInstanceId,
+      checklistInstanceId,
       input
     );
     response.json(instance);

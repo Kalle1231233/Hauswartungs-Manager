@@ -16,7 +16,7 @@ export type AccessTokenPayload = {
 
 export function signAccessToken(payload: AccessTokenPayload) {
   return jwt.sign(payload, env.jwtAccessSecret, {
-    expiresIn: env.jwtAccessExpiresIn
+    expiresIn: env.jwtAccessExpiresIn as jwt.SignOptions["expiresIn"]
   });
 }
 

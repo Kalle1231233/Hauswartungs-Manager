@@ -37,18 +37,18 @@ export type MaintenanceCategory = z.infer<typeof maintenanceCategorySchema>;
 
 export const registerOrganizationSchema = z.object({
   organizationName: z.string().min(2).max(120),
-  contactEmail: z.email(),
+  contactEmail: z.string().email(),
   adminName: z.string().min(2).max(120),
   password: z.string().min(8).max(128)
 });
 
 export const loginSchema = z.object({
-  email: z.email(),
+  email: z.string().email(),
   password: z.string().min(8).max(128)
 });
 
 export const invitationCreateSchema = z.object({
-  email: z.email(),
+  email: z.string().email(),
   role: roleSchema.exclude(["SUPER_ADMIN"])
 });
 
@@ -59,7 +59,7 @@ export const acceptInvitationSchema = z.object({
 });
 
 export const passwordResetRequestSchema = z.object({
-  email: z.email()
+  email: z.string().email()
 });
 
 export const passwordResetConfirmSchema = z.object({
@@ -87,7 +87,7 @@ export const unitCreateSchema = z.object({
 export const propertyContactCreateSchema = z.object({
   name: z.string().min(2).max(120),
   company: z.string().max(120).optional(),
-  email: z.email().optional(),
+  email: z.string().email().optional(),
   phone: z.string().max(40).optional(),
   roleLabel: z.string().min(2).max(120)
 });

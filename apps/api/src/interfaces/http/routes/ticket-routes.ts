@@ -3,9 +3,11 @@ import { z } from "zod";
 
 import {
   checklistInstanceCreateSchema,
+  ticketCategorySchema,
   ticketAssignSchema,
   ticketCommentCreateSchema,
   ticketCreateSchema,
+  ticketStatusSchema,
   ticketStatusUpdateSchema,
   timeEntryCreateSchema
 } from "@haus/shared";
@@ -30,9 +32,13 @@ import { upload } from "../utils/upload.js";
 
 const listQuerySchema = z.object({
   propertyId: z.string().cuid().optional(),
-  status: z.string().optional(),
+  status: ticketStatusSchema.optional(),
   responsibleUserId: z.string().cuid().optional(),
-  category: z.string().optional()
+  category: ticketCategorySchema.optional()
+});
+
+const ticketIdParamSchema = z.object({
+  ticketId: z.string().cuid()
 });
 
 export const ticketRouter = Router();
@@ -63,7 +69,8 @@ ticketRouter.get(
   "/:ticketId",
   authorize("ORG_ADMIN", "SUPER_ADMIN", "TECHNICIAN", "SERVICE_PROVIDER", "RESIDENT"),
   asyncHandler(async (request, response) => {
-    const ticket = await getTicketDetail(getRequestContext(request), request.params.ticketId);
+    const { ticketId } = ticketIdParamSchema.parse(request.params);
+    const ticket = await getTicketDetail(getRequestContext(request), ticketId);
     response.json(ticket);
   })
 );
@@ -73,7 +80,8 @@ ticketRouter.post(
   authorize("ORG_ADMIN", "SUPER_ADMIN"),
   asyncHandler(async (request, response) => {
     const input = ticketAssignSchema.parse(request.body);
-    const ticket = await assignTicket(getRequestContext(request), request.params.ticketId, input);
+    const { ticketId } = ticketIdParamSchema.parse(request.params);
+    const ticket = await assignTicket(getRequestContext(request), ticketId, input);
     response.json(ticket);
   })
 );
@@ -83,9 +91,10 @@ ticketRouter.post(
   authorize("ORG_ADMIN", "SUPER_ADMIN", "TECHNICIAN", "SERVICE_PROVIDER"),
   asyncHandler(async (request, response) => {
     const input = ticketStatusUpdateSchema.parse(request.body);
+    const { ticketId } = ticketIdParamSchema.parse(request.params);
     const ticket = await updateTicketStatus(
       getRequestContext(request),
-      request.params.ticketId,
+      ticketId,
       input
     );
     response.json(ticket);
@@ -97,9 +106,10 @@ ticketRouter.post(
   authorize("ORG_ADMIN", "SUPER_ADMIN", "TECHNICIAN", "SERVICE_PROVIDER", "RESIDENT"),
   asyncHandler(async (request, response) => {
     const input = ticketCommentCreateSchema.parse(request.body);
+    const { ticketId } = ticketIdParamSchema.parse(request.params);
     const ticket = await addTicketComment(
       getRequestContext(request),
-      request.params.ticketId,
+      ticketId,
       input
     );
     response.json(ticket);
@@ -116,12 +126,9 @@ ticketRouter.post(
     }
 
     const { persistUploadedFile } = await import("../../../infrastructure/files/storage.js");
+    const { ticketId } = ticketIdParamSchema.parse(request.params);
     const storedFile = await persistUploadedFile(request.file, "ticket-attachments");
-    const ticket = await addTicketAttachment(
-      getRequestContext(request),
-      request.params.ticketId,
-      storedFile
-    );
+    const ticket = await addTicketAttachment(getRequestContext(request), ticketId, storedFile);
     response.json(ticket);
   })
 );
@@ -130,9 +137,10 @@ ticketRouter.post(
   "/:ticketId/checklists",
   authorize("ORG_ADMIN", "SUPER_ADMIN", "TECHNICIAN", "SERVICE_PROVIDER"),
   asyncHandler(async (request, response) => {
+    const { ticketId } = ticketIdParamSchema.parse(request.params);
     const input = checklistInstanceCreateSchema.parse({
       ...request.body,
-      ticketId: request.params.ticketId
+      ticketId
     });
     const instance = await createChecklistInstance(
       getRequestContext(request),
@@ -148,7 +156,8 @@ ticketRouter.post(
   authorize("ORG_ADMIN", "SUPER_ADMIN", "TECHNICIAN", "SERVICE_PROVIDER"),
   asyncHandler(async (request, response) => {
     const input = timeEntryCreateSchema.parse(request.body);
-    const entry = await addTimeEntry(getRequestContext(request), request.params.ticketId, input);
+    const { ticketId } = ticketIdParamSchema.parse(request.params);
+    const entry = await addTimeEntry(getRequestContext(request), ticketId, input);
     response.status(201).json(entry);
   })
 );

@@ -5,9 +5,9 @@ import type {
   TicketStatus,
   TicketStatusUpdateInput
 } from "@haus/shared";
-import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../infrastructure/database/prisma.js";
+import type { Prisma } from "../../generated/prisma/client.js";
 import { AppError, assertCondition } from "../common/errors.js";
 import { assertSameOrganization, type RequestContext } from "../common/tenant.js";
 import { canTransitionTicket } from "./ticket-workflow.js";

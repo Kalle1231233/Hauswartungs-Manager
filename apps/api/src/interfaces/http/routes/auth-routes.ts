@@ -32,6 +32,10 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(20)
 });
 
+const userIdParamSchema = z.object({
+  userId: z.string().cuid()
+});
+
 const updateUserActiveSchema = z.object({
   isActive: z.boolean()
 });
@@ -137,9 +141,10 @@ authRouter.patch(
   authorize("ORG_ADMIN", "SUPER_ADMIN"),
   asyncHandler(async (request, response) => {
     const input = updateUserActiveSchema.parse(request.body);
+    const { userId } = userIdParamSchema.parse(request.params);
     const user = await updateUserActiveState(
       getRequestContext(request),
-      request.params.userId,
+      userId,
       input.isActive
     );
     response.json(user);

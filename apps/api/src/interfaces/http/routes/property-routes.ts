@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 
 import {
   propertyContactCreateSchema,
@@ -23,6 +24,15 @@ import { getRequestContext } from "../utils/request-context.js";
 import { upload } from "../utils/upload.js";
 
 export const propertyRouter = Router();
+
+const propertyIdParamSchema = z.object({
+  propertyId: z.string().cuid()
+});
+
+const propertyResidentAssignmentSchema = z.object({
+  userId: z.string().cuid(),
+  unitId: z.string().cuid().optional()
+});
 
 propertyRouter.use(authenticate);
 
@@ -49,7 +59,8 @@ propertyRouter.get(
   "/:propertyId",
   authorize("ORG_ADMIN", "SUPER_ADMIN", "TECHNICIAN", "SERVICE_PROVIDER", "RESIDENT"),
   asyncHandler(async (request, response) => {
-    const property = await getProperty(getRequestContext(request), request.params.propertyId);
+    const { propertyId } = propertyIdParamSchema.parse(request.params);
+    const property = await getProperty(getRequestContext(request), propertyId);
     response.json(property);
   })
 );
@@ -59,7 +70,8 @@ propertyRouter.post(
   authorize("ORG_ADMIN", "SUPER_ADMIN"),
   asyncHandler(async (request, response) => {
     const input = unitCreateSchema.parse(request.body);
-    const unit = await createUnit(getRequestContext(request), request.params.propertyId, input);
+    const { propertyId } = propertyIdParamSchema.parse(request.params);
+    const unit = await createUnit(getRequestContext(request), propertyId, input);
     response.status(201).json(unit);
   })
 );
@@ -69,9 +81,10 @@ propertyRouter.post(
   authorize("ORG_ADMIN", "SUPER_ADMIN"),
   asyncHandler(async (request, response) => {
     const input = propertyContactCreateSchema.parse(request.body);
+    const { propertyId } = propertyIdParamSchema.parse(request.params);
     const contact = await createPropertyContact(
       getRequestContext(request),
-      request.params.propertyId,
+      propertyId,
       input
     );
     response.status(201).json(contact);
@@ -88,12 +101,9 @@ propertyRouter.post(
     }
 
     const { persistUploadedFile } = await import("../../../infrastructure/files/storage.js");
+    const { propertyId } = propertyIdParamSchema.parse(request.params);
     const storedFile = await persistUploadedFile(request.file, "property-documents");
-    const document = await addPropertyDocument(
-      getRequestContext(request),
-      request.params.propertyId,
-      storedFile
-    );
+    const document = await addPropertyDocument(getRequestContext(request), propertyId, storedFile);
     response.status(201).json(document);
   })
 );
@@ -102,15 +112,13 @@ propertyRouter.post(
   "/:propertyId/resident-assignments",
   authorize("ORG_ADMIN", "SUPER_ADMIN"),
   asyncHandler(async (request, response) => {
-    const payload = request.body as { userId?: string; unitId?: string };
-    if (!payload.userId) {
-      throw new AppError(400, "userId is required.");
-    }
+    const { propertyId } = propertyIdParamSchema.parse(request.params);
+    const payload = propertyResidentAssignmentSchema.parse(request.body);
 
     const assignment = await assignResidentToUnit(
       getRequestContext(request),
       payload.userId,
-      request.params.propertyId,
+      propertyId,
       payload.unitId
     );
 

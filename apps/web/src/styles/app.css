@@ -141,6 +141,17 @@ label {
   gap: 1rem;
 }
 
+.toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.toolbar-field {
+  align-self: end;
+}
+
 .compact-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -153,6 +164,19 @@ label {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.selectable-card {
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  background: white;
+  border: 1px solid transparent;
+}
+
+.selected-card {
+  border-color: #1e63ff;
+  box-shadow: 0 0 0 2px rgba(30, 99, 255, 0.12);
 }
 
 .list-item {
@@ -188,6 +212,16 @@ label {
   padding: 0.9rem;
   border-left: 3px solid #1e63ff;
   background: #f8fbff;
+}
+
+.detail-section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.link-card {
+  text-decoration: none;
+  color: inherit;
 }
 
 .meta-row {

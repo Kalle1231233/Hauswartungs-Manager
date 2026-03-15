@@ -145,6 +145,16 @@ export const apiClient = {
     }, session);
   },
 
+  uploadPropertyDocument(session: ClientSession, propertyId: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return request(`/properties/${propertyId}/documents`, {
+      method: "POST",
+      body: formData
+    }, session);
+  },
+
   listTickets(session: ClientSession) {
     return request<Array<Record<string, unknown>>>("/tickets", {}, session);
   },
@@ -174,6 +184,13 @@ export const apiClient = {
     }, session);
   },
 
+  assignTicket(session: ClientSession, ticketId: string, responsibleUserId: string) {
+    return request(`/tickets/${ticketId}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ responsibleUserId })
+    }, session);
+  },
+
   createTicketChecklist(session: ClientSession, ticketId: string, templateId: string) {
     return request(`/tickets/${ticketId}/checklists`, {
       method: "POST",
@@ -185,6 +202,16 @@ export const apiClient = {
     return request(`/tickets/${ticketId}/time-entries`, {
       method: "POST",
       body: JSON.stringify(input)
+    }, session);
+  },
+
+  uploadTicketAttachment(session: ClientSession, ticketId: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return request(`/tickets/${ticketId}/attachments`, {
+      method: "POST",
+      body: formData
     }, session);
   },
 

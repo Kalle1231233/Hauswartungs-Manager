@@ -13,13 +13,20 @@ type TicketListItem = {
   status: TicketStatus;
   category: string;
   priority: string;
-  property?: { name?: string };
-  responsibleUser?: { name?: string };
+  property?: { id?: string; name?: string };
+  responsibleUser?: { id?: string; name?: string };
 };
 
 type TicketDetail = TicketListItem & {
   description?: string;
   responsibleUser?: { name?: string };
+  attachments?: Array<{
+    id: string;
+    fileName?: string;
+    filePath?: string;
+    mimeType?: string;
+    createdAt: string;
+  }>;
   activities?: Array<{
     id: string;
     type: string;
@@ -58,8 +65,14 @@ export function TicketsPage() {
   const { session } = useAuth();
   const queryClient = useQueryClient();
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | TicketStatus>("ALL");
+  const [propertyFilter, setPropertyFilter] = useState<string>("ALL");
+  const [responsibleFilter, setResponsibleFilter] = useState<string>("ALL");
   const canChangeStatus = session?.user.role !== "RESIDENT";
   const canUseOperationalTools = session?.user.role !== "RESIDENT";
+  const canAssignTickets =
+    session?.user.role === "ORG_ADMIN" || session?.user.role === "SUPER_ADMIN";
 
   const ticketsQuery = useQuery({
     queryKey: ["tickets"],
@@ -146,6 +159,22 @@ export function TicketsPage() {
     }
   });
 
+  const assignMutation = useMutation({
+    mutationFn: (formData: FormData) =>
+      apiClient.assignTicket(
+        session!,
+        selectedTicketId!,
+        String(formData.get("responsibleUserId") ?? "")
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tickets"] }),
+        queryClient.invalidateQueries({ queryKey: ["ticket", selectedTicketId] }),
+        queryClient.invalidateQueries({ queryKey: ["overview"] })
+      ]);
+    }
+  });
+
   const createChecklistMutation = useMutation({
     mutationFn: (formData: FormData) =>
       apiClient.createTicketChecklist(
@@ -195,8 +224,24 @@ export function TicketsPage() {
     }
   });
 
+  const attachmentMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const file = formData.get("file");
+      if (!(file instanceof File) || file.size === 0) {
+        throw new Error("Bitte eine Datei auswaehlen.");
+      }
+
+      return apiClient.uploadTicketAttachment(session!, selectedTicketId!, file);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tickets"] }),
+        queryClient.invalidateQueries({ queryKey: ["ticket", selectedTicketId] })
+      ]);
+    }
+  });
+
   const tickets = (ticketsQuery.data ?? []) as TicketListItem[];
-  const selectedTicket = (selectedTicketQuery.data ?? null) as TicketDetail | null;
 
   const propertyOptions = useMemo(
     () =>
@@ -211,6 +256,28 @@ export function TicketsPage() {
   const checklistTemplateOptions = ((checklistTemplatesQuery.data ?? []) as ChecklistTemplateOption[]).filter(
     Boolean
   );
+  const filteredTickets = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return tickets.filter((ticket) => {
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        `${ticket.title} ${ticket.property?.name ?? ""} ${ticket.category} ${ticket.priority}`
+          .toLowerCase()
+          .includes(normalizedSearch);
+      const matchesStatus = statusFilter === "ALL" || ticket.status === statusFilter;
+      const matchesProperty = propertyFilter === "ALL" || ticket.property?.id === propertyFilter;
+      const matchesResponsible =
+        responsibleFilter === "ALL" || ticket.responsibleUser?.id === responsibleFilter;
+
+      return matchesSearch && matchesStatus && matchesProperty && matchesResponsible;
+    });
+  }, [tickets, search, statusFilter, propertyFilter, responsibleFilter]);
+
+  const selectedTicket =
+    ((selectedTicketQuery.data ?? null) as TicketDetail | null) ??
+    (filteredTickets.find((ticket) => ticket.id === selectedTicketId) as TicketDetail | undefined) ??
+    null;
 
   return (
     <div className="page">
@@ -295,8 +362,63 @@ export function TicketsPage() {
 
         <article className="card">
           <h3>Ticketliste</h3>
+          <div className="toolbar">
+            <label className="toolbar-field">
+              <span>Suche</span>
+              <input
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Titel, Objekt, Kategorie"
+                value={search}
+              />
+            </label>
+            <label className="toolbar-field">
+              <span>Status</span>
+              <select
+                onChange={(event) => setStatusFilter(event.target.value as "ALL" | TicketStatus)}
+                value={statusFilter}
+              >
+                <option value="ALL">Alle</option>
+                <option value="NEW">Neu</option>
+                <option value="ASSIGNED">Zugewiesen</option>
+                <option value="IN_PROGRESS">In Bearbeitung</option>
+                <option value="WAITING_FOR_FEEDBACK">Wartet auf Rueckmeldung</option>
+                <option value="DONE">Erledigt</option>
+                <option value="CLOSED">Geschlossen</option>
+              </select>
+            </label>
+            <label className="toolbar-field">
+              <span>Objekt</span>
+              <select
+                onChange={(event) => setPropertyFilter(event.target.value)}
+                value={propertyFilter}
+              >
+                <option value="ALL">Alle</option>
+                {propertyOptions.map((property) => (
+                  <option key={property.id} value={property.id}>
+                    {property.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {userOptions.length ? (
+              <label className="toolbar-field">
+                <span>Verantwortlich</span>
+                <select
+                  onChange={(event) => setResponsibleFilter(event.target.value)}
+                  value={responsibleFilter}
+                >
+                  <option value="ALL">Alle</option>
+                  {userOptions.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
           <div className="stack">
-            {tickets.map((ticket) => (
+            {filteredTickets.map((ticket) => (
               <button
                 className={`list-item selectable ${selectedTicketId === ticket.id ? "selected" : ""}`}
                 key={ticket.id}
@@ -307,9 +429,14 @@ export function TicketsPage() {
                 <span className="muted">
                   {ticket.property?.name ?? "-"} - {ticket.status} - {ticket.priority}
                 </span>
+                <span className="muted">
+                  {ticket.responsibleUser?.name ?? "Nicht zugewiesen"}
+                </span>
               </button>
             ))}
-            {tickets.length === 0 ? <p className="muted">Keine Tickets vorhanden.</p> : null}
+            {filteredTickets.length === 0 ? (
+              <p className="muted">Keine Tickets fuer die aktuelle Filterung vorhanden.</p>
+            ) : null}
           </div>
         </article>
       </section>
@@ -380,6 +507,77 @@ export function TicketsPage() {
                   </button>
                 </form>
               ) : null}
+
+              {canAssignTickets && userOptions.length ? (
+                <form
+                  className="form-grid compact-grid"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void assignMutation.mutateAsync(new FormData(event.currentTarget));
+                  }}
+                >
+                  <label>
+                    <span>Neu zuweisen</span>
+                    <select
+                      defaultValue=""
+                      name="responsibleUserId"
+                      required
+                    >
+                      <option value="" disabled>
+                        Bitte waehlen
+                      </option>
+                      {userOptions.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button disabled={assignMutation.isPending} type="submit">
+                    Ticket zuweisen
+                  </button>
+                </form>
+              ) : null}
+
+              <div className="divider" />
+
+              <h4>Anhaenge und Fotos</h4>
+              <form
+                className="form-grid compact-grid"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void attachmentMutation.mutateAsync(new FormData(event.currentTarget)).then(() => {
+                    event.currentTarget.reset();
+                  });
+                }}
+              >
+                <label className="wide">
+                  <span>Datei / Foto hochladen</span>
+                  <input accept=".pdf,image/*" name="file" required type="file" />
+                </label>
+                <button disabled={attachmentMutation.isPending} type="submit">
+                  {attachmentMutation.isPending ? "Laedt hoch..." : "Anhang hochladen"}
+                </button>
+              </form>
+
+              <div className="stack">
+                {selectedTicket.attachments?.map((attachment) => (
+                  <a
+                    className="list-item link-card"
+                    href={attachment.filePath}
+                    key={attachment.id}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <strong>{attachment.fileName ?? "Anhang"}</strong>
+                    <span className="muted">{attachment.mimeType ?? "-"}</span>
+                    <span className="muted">{attachment.createdAt.slice(0, 16)}</span>
+                  </a>
+                ))}
+                {!selectedTicket.attachments?.length ? (
+                  <p className="muted">Noch keine Dateien an diesem Ticket.</p>
+                ) : null}
+              </div>
 
               {canUseOperationalTools ? (
                 <>

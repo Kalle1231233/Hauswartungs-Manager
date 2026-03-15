@@ -198,6 +198,20 @@ label {
   font-size: 0.95rem;
 }
 
+.split-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -237,6 +251,11 @@ label {
   color: #9b2530;
 }
 
+.alert.success {
+  background: #eefaf1;
+  color: #1c6a35;
+}
+
 .auth-page {
   min-height: 100vh;
   display: grid;
@@ -269,6 +288,51 @@ label {
   color: #10233f;
 }
 
+.segmented-control.wrap {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.code-block {
+  display: block;
+  overflow-x: auto;
+  border-radius: 12px;
+  background: #11233c;
+  color: #f5f9ff;
+  padding: 0.85rem 1rem;
+}
+
+.divider {
+  border-top: 1px solid #e2e9f4;
+  margin: 0.25rem 0;
+}
+
+.checklist-row {
+  display: grid;
+  gap: 0.6rem;
+  border: 1px solid #e2e9f4;
+  border-radius: 14px;
+  padding: 0.85rem;
+}
+
+.checklist-row.readonly {
+  background: #f8fbff;
+}
+
+.checkbox-label {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
+.small-gap {
+  gap: 0.3rem;
+}
+
 @media (max-width: 960px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -283,5 +347,9 @@ label {
   .detail-grid,
   .compact-grid {
     grid-template-columns: 1fr;
+  }
+
+  .split-row {
+    flex-direction: column;
   }
 }

@@ -430,6 +430,31 @@ export async function listOrganizationUsers(context: RequestContext) {
   });
 }
 
+export async function listOrganizationInvitations(context: RequestContext) {
+  return prisma.invitation.findMany({
+    where: {
+      organizationId: context.effectiveOrganizationId,
+      acceptedAt: null
+    },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      expiresAt: true,
+      createdAt: true,
+      invitedBy: {
+        select: {
+          id: true,
+          name: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+}
+
 export async function updateUserActiveState(
   context: RequestContext,
   userId: string,

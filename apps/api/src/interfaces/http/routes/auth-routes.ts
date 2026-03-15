@@ -14,6 +14,7 @@ import {
   acceptInvitation,
   getCurrentUser,
   inviteUser,
+  listOrganizationInvitations,
   listOrganizationUsers,
   login,
   logout,
@@ -121,6 +122,16 @@ authRouter.get(
   asyncHandler(async (request, response) => {
     const users = await listOrganizationUsers(getRequestContext(request));
     response.json(users);
+  })
+);
+
+authRouter.get(
+  "/invitations",
+  authenticate,
+  authorize("ORG_ADMIN", "SUPER_ADMIN"),
+  asyncHandler(async (request, response) => {
+    const invitations = await listOrganizationInvitations(getRequestContext(request));
+    response.json(invitations);
   })
 );
 

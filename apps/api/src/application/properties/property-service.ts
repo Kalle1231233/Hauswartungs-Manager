@@ -3,21 +3,81 @@ import type {
   PropertyCreateInput,
   UnitCreateInput
 } from "@haus/shared";
+import type { Prisma } from "../../generated/prisma/client.js";
 
 import { prisma } from "../../infrastructure/database/prisma.js";
 import { AppError, assertCondition } from "../common/errors.js";
 import { assertSameOrganization, type RequestContext } from "../common/tenant.js";
 
+function buildPropertyVisibilityWhere(context: RequestContext): Prisma.PropertyWhereInput {
+  if (context.role === "RESIDENT") {
+    return {
+      residentAssignments: {
+        some: {
+          userId: context.userId
+        }
+      }
+    };
+  }
+
+  if (context.role === "TECHNICIAN" || context.role === "SERVICE_PROVIDER") {
+    return {
+      OR: [
+        {
+          tickets: {
+            some: {
+              responsibleUserId: context.userId
+            }
+          }
+        },
+        {
+          maintenancePlans: {
+            some: {
+              OR: [
+                { responsibleUserId: context.userId },
+                { responsibleRole: context.role }
+              ]
+            }
+          }
+        }
+      ]
+    };
+  }
+
+  return {};
+}
+
+function buildPropertyInclude(context: RequestContext) {
+  if (context.role === "RESIDENT") {
+    return {
+      units: {
+        where: {
+          residentAssignments: {
+            some: {
+              userId: context.userId
+            }
+          }
+        }
+      },
+      contacts: false,
+      documents: false
+    } satisfies Prisma.PropertyInclude;
+  }
+
+  return {
+    units: true,
+    contacts: true,
+    documents: true
+  } satisfies Prisma.PropertyInclude;
+}
+
 export async function listProperties(context: RequestContext) {
   return prisma.property.findMany({
     where: {
-      organizationId: context.effectiveOrganizationId
+      organizationId: context.effectiveOrganizationId,
+      ...buildPropertyVisibilityWhere(context)
     },
-    include: {
-      units: true,
-      contacts: true,
-      documents: true
-    },
+    include: buildPropertyInclude(context),
     orderBy: {
       name: "asc"
     }
@@ -25,17 +85,16 @@ export async function listProperties(context: RequestContext) {
 }
 
 export async function getProperty(context: RequestContext, propertyId: string) {
-  const property = await prisma.property.findUnique({
-    where: { id: propertyId },
-    include: {
-      units: true,
-      contacts: true,
-      documents: true
-    }
+  const property = await prisma.property.findFirst({
+    where: {
+      id: propertyId,
+      organizationId: context.effectiveOrganizationId,
+      ...buildPropertyVisibilityWhere(context)
+    },
+    include: buildPropertyInclude(context)
   });
 
   assertCondition(property, 404, "Property not found.");
-  assertSameOrganization(property.organizationId, context.effectiveOrganizationId);
   return property;
 }
 

@@ -1,13 +1,15 @@
 import type {
   AuthSession,
   ChecklistTemplateCreateInput,
+  InvitationCreateInput,
   LoginInput,
   MaintenancePlanCreateInput,
   PropertyCreateInput,
   RegisterOrganizationInput,
   TicketCommentCreateInput,
   TicketCreateInput,
-  TicketStatusUpdateInput
+  TicketStatusUpdateInput,
+  TimeEntryCreateInput
 } from "@haus/shared";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
@@ -64,6 +66,27 @@ export const apiClient = {
     });
   },
 
+  requestPasswordReset(email: string) {
+    return request<{ success: boolean; previewToken?: string }>("/auth/password-reset/request", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    });
+  },
+
+  confirmPasswordReset(token: string, password: string) {
+    return request<{ success: boolean }>("/auth/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token, password })
+    });
+  },
+
+  acceptInvitation(token: string, name: string, password: string) {
+    return request<AuthSession>("/auth/accept-invitation", {
+      method: "POST",
+      body: JSON.stringify({ token, name, password })
+    });
+  },
+
   getCurrentUser(session: ClientSession) {
     return request("/auth/me", {}, session);
   },
@@ -78,6 +101,37 @@ export const apiClient = {
         isActive: boolean;
       }>
     >("/auth/users", {}, session);
+  },
+
+  listInvitations(session: ClientSession) {
+    return request<
+      Array<{
+        id: string;
+        email: string;
+        role: string;
+        expiresAt: string;
+        createdAt: string;
+        invitedBy: { id: string; name: string };
+      }>
+    >("/auth/invitations", {}, session);
+  },
+
+  createInvitation(session: ClientSession, input: InvitationCreateInput) {
+    return request<{ invitationId: string; expiresAt: string; previewToken?: string }>(
+      "/auth/invitations",
+      {
+        method: "POST",
+        body: JSON.stringify(input)
+      },
+      session
+    );
+  },
+
+  updateUserActiveState(session: ClientSession, userId: string, isActive: boolean) {
+    return request(`/auth/users/${userId}/active`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive })
+    }, session);
   },
 
   listProperties(session: ClientSession) {
@@ -120,6 +174,20 @@ export const apiClient = {
     }, session);
   },
 
+  createTicketChecklist(session: ClientSession, ticketId: string, templateId: string) {
+    return request(`/tickets/${ticketId}/checklists`, {
+      method: "POST",
+      body: JSON.stringify({ templateId })
+    }, session);
+  },
+
+  addTimeEntry(session: ClientSession, ticketId: string, input: TimeEntryCreateInput) {
+    return request(`/tickets/${ticketId}/time-entries`, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }, session);
+  },
+
   listMaintenancePlans(session: ClientSession) {
     return request<Array<Record<string, unknown>>>("/maintenance-plans", {}, session);
   },
@@ -144,6 +212,20 @@ export const apiClient = {
 
   createChecklistTemplate(session: ClientSession, input: ChecklistTemplateCreateInput) {
     return request("/checklists/templates", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }, session);
+  },
+
+  submitChecklistInstance(
+    session: ClientSession,
+    checklistInstanceId: string,
+    input: {
+      responses: Array<{ templateItemId: string; checked: boolean; comment?: string }>;
+      summary?: string;
+    }
+  ) {
+    return request(`/checklists/instances/${checklistInstanceId}/submit`, {
       method: "POST",
       body: JSON.stringify(input)
     }, session);

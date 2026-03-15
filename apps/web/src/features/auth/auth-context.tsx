@@ -16,6 +16,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   login: (input: LoginInput) => Promise<void>;
   registerOrganization: (input: RegisterOrganizationInput) => Promise<void>;
+  acceptInvitation: (input: { token: string; name: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -43,6 +44,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
     async registerOrganization(input) {
       const nextSession = await apiClient.registerOrganization(input);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSession));
+      setSession(nextSession);
+    },
+    async acceptInvitation(input) {
+      const nextSession = await apiClient.acceptInvitation(
+        input.token,
+        input.name,
+        input.password
+      );
       localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSession));
       setSession(nextSession);
     },

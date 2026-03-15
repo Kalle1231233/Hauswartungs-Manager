@@ -5,6 +5,8 @@ import { useAuth } from "../features/auth/auth-context";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { session, logout } = useAuth();
+  const canManageOrganization =
+    session?.user.role === "ORG_ADMIN" || session?.user.role === "SUPER_ADMIN";
 
   return (
     <div className="app-shell">
@@ -26,6 +28,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <NavLink to="/properties">Objekte</NavLink>
           <NavLink to="/tickets">Tickets</NavLink>
           <NavLink to="/maintenance">Wartung</NavLink>
+          {canManageOrganization ? <NavLink to="/organization">Organisation</NavLink> : null}
         </nav>
 
         <button className="ghost-button" onClick={() => void logout()}>

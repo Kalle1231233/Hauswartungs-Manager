@@ -19,6 +19,7 @@ type TicketListItem = {
 
 type TicketDetail = TicketListItem & {
   description?: string;
+  responsibleUser?: { name?: string };
   activities?: Array<{
     id: string;
     type: string;
@@ -27,6 +28,30 @@ type TicketDetail = TicketListItem & {
     actorUser?: { name?: string; role?: string };
     toStatus?: string | null;
   }>;
+  checklistInstances?: Array<{
+    id: string;
+    status: "OPEN" | "COMPLETED";
+    summary?: string | null;
+    template: {
+      id: string;
+      name: string;
+      items: Array<{ id: string; label: string; required: boolean }>;
+    };
+    responses: Array<{ templateItemId: string; checked: boolean; comment?: string | null }>;
+  }>;
+  timeEntries?: Array<{
+    id: string;
+    durationMinutes: number;
+    note?: string | null;
+    createdAt: string;
+    user?: { name?: string };
+  }>;
+};
+
+type ChecklistTemplateOption = {
+  id: string;
+  name: string;
+  categoryLabel: string;
 };
 
 export function TicketsPage() {
@@ -34,6 +59,7 @@ export function TicketsPage() {
   const queryClient = useQueryClient();
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const canChangeStatus = session?.user.role !== "RESIDENT";
+  const canUseOperationalTools = session?.user.role !== "RESIDENT";
 
   const ticketsQuery = useQuery({
     queryKey: ["tickets"],
@@ -51,6 +77,12 @@ export function TicketsPage() {
     queryKey: ["users"],
     queryFn: () => apiClient.listUsers(session!),
     enabled: Boolean(session && (session.user.role === "ORG_ADMIN" || session.user.role === "SUPER_ADMIN"))
+  });
+
+  const checklistTemplatesQuery = useQuery({
+    queryKey: ["checklist-templates", "ticket-page"],
+    queryFn: () => apiClient.listChecklistTemplates(session!),
+    enabled: Boolean(session && canUseOperationalTools)
   });
 
   const selectedTicketQuery = useQuery({
@@ -93,7 +125,8 @@ export function TicketsPage() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["tickets"] }),
-        queryClient.invalidateQueries({ queryKey: ["ticket", selectedTicketId] })
+        queryClient.invalidateQueries({ queryKey: ["ticket", selectedTicketId] }),
+        queryClient.invalidateQueries({ queryKey: ["overview"] })
       ]);
     }
   });
@@ -113,6 +146,55 @@ export function TicketsPage() {
     }
   });
 
+  const createChecklistMutation = useMutation({
+    mutationFn: (formData: FormData) =>
+      apiClient.createTicketChecklist(
+        session!,
+        selectedTicketId!,
+        String(formData.get("templateId") ?? "")
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["ticket", selectedTicketId] });
+    }
+  });
+
+  const submitChecklistMutation = useMutation({
+    mutationFn: ({
+      checklistInstanceId,
+      formData,
+      templateItems
+    }: {
+      checklistInstanceId: string;
+      formData: FormData;
+      templateItems: Array<{ id: string }>;
+    }) =>
+      apiClient.submitChecklistInstance(session!, checklistInstanceId, {
+        summary: String(formData.get("summary") ?? "") || undefined,
+        responses: templateItems.map((item) => ({
+          templateItemId: item.id,
+          checked: formData.get(`checked-${item.id}`) === "on",
+          comment: String(formData.get(`comment-${item.id}`) ?? "") || undefined
+        }))
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["ticket", selectedTicketId] });
+    }
+  });
+
+  const timeEntryMutation = useMutation({
+    mutationFn: (formData: FormData) =>
+      apiClient.addTimeEntry(session!, selectedTicketId!, {
+        durationMinutes: Number(formData.get("durationMinutes") ?? 0),
+        note: String(formData.get("note") ?? "") || undefined
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ticket", selectedTicketId] }),
+        queryClient.invalidateQueries({ queryKey: ["overview"] })
+      ]);
+    }
+  });
+
   const tickets = (ticketsQuery.data ?? []) as TicketListItem[];
   const selectedTicket = (selectedTicketQuery.data ?? null) as TicketDetail | null;
 
@@ -126,6 +208,9 @@ export function TicketsPage() {
   );
 
   const userOptions = ((usersQuery.data ?? []) as Array<{ id: string; name: string }>).filter(Boolean);
+  const checklistTemplateOptions = ((checklistTemplatesQuery.data ?? []) as ChecklistTemplateOption[]).filter(
+    Boolean
+  );
 
   return (
     <div className="page">
@@ -246,6 +331,7 @@ export function TicketsPage() {
                 <span className="badge">{selectedTicket.status}</span>
                 <span>{selectedTicket.category}</span>
                 <span>{selectedTicket.priority}</span>
+                <span>{selectedTicket.responsibleUser?.name ?? "Nicht zugewiesen"}</span>
               </div>
 
               <form
@@ -294,6 +380,150 @@ export function TicketsPage() {
                   </button>
                 </form>
               ) : null}
+
+              {canUseOperationalTools ? (
+                <>
+                  <div className="divider" />
+
+                  <h4>Checklisten</h4>
+                  <form
+                    className="form-grid compact-grid"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void createChecklistMutation
+                        .mutateAsync(new FormData(event.currentTarget))
+                        .then(() => event.currentTarget.reset());
+                    }}
+                  >
+                    <label>
+                      <span>Template anhaengen</span>
+                      <select name="templateId" required>
+                        <option value="">Bitte waehlen</option>
+                        {checklistTemplateOptions.map((template) => (
+                          <option key={template.id} value={template.id}>
+                            {template.name} ({template.categoryLabel})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button disabled={createChecklistMutation.isPending} type="submit">
+                      Checkliste anlegen
+                    </button>
+                  </form>
+
+                  <div className="stack">
+                    {selectedTicket.checklistInstances?.map((instance) => (
+                      <article className="list-card" key={instance.id}>
+                        <div className="meta-row">
+                          <strong>{instance.template.name}</strong>
+                          <span className={`badge ${instance.status === "COMPLETED" ? "subtle" : ""}`}>
+                            {instance.status}
+                          </span>
+                        </div>
+
+                        {instance.status === "OPEN" ? (
+                          <form
+                            className="form-grid"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void submitChecklistMutation.mutateAsync({
+                                checklistInstanceId: instance.id,
+                                formData: new FormData(event.currentTarget),
+                                templateItems: instance.template.items
+                              });
+                            }}
+                          >
+                            {instance.template.items.map((item) => {
+                              const existingResponse = instance.responses.find(
+                                (response) => response.templateItemId === item.id
+                              );
+
+                              return (
+                                <div className="checklist-row" key={item.id}>
+                                  <label className="checkbox-label">
+                                    <input
+                                      defaultChecked={existingResponse?.checked ?? false}
+                                      name={`checked-${item.id}`}
+                                      type="checkbox"
+                                    />
+                                    <span>
+                                      {item.label} {item.required ? "*" : ""}
+                                    </span>
+                                  </label>
+                                  <input
+                                    defaultValue={existingResponse?.comment ?? ""}
+                                    name={`comment-${item.id}`}
+                                    placeholder="Kommentar"
+                                  />
+                                </div>
+                              );
+                            })}
+                            <label>
+                              <span>Zusammenfassung</span>
+                              <textarea defaultValue={instance.summary ?? ""} name="summary" rows={3} />
+                            </label>
+                            <button disabled={submitChecklistMutation.isPending} type="submit">
+                              Checkliste abschliessen
+                            </button>
+                          </form>
+                        ) : (
+                          <div className="stack">
+                            {instance.template.items.map((item) => {
+                              const response = instance.responses.find(
+                                (entry) => entry.templateItemId === item.id
+                              );
+
+                              return (
+                                <div className="checklist-row readonly" key={item.id}>
+                                  <strong>{item.label}</strong>
+                                  <span className="muted">
+                                    {response?.checked ? "Erledigt" : "Nicht erledigt"}
+                                  </span>
+                                  {response?.comment ? <p>{response.comment}</p> : null}
+                                </div>
+                              );
+                            })}
+                            {instance.summary ? (
+                              <div className="timeline-item">
+                                <strong>Zusammenfassung</strong>
+                                <p>{instance.summary}</p>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </article>
+                    ))}
+                    {!selectedTicket.checklistInstances?.length ? (
+                      <p className="muted">Noch keine Checklisten mit diesem Ticket verknuepft.</p>
+                    ) : null}
+                  </div>
+
+                  <div className="divider" />
+
+                  <h4>Zeiterfassung</h4>
+                  <form
+                    className="form-grid compact-grid"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void timeEntryMutation.mutateAsync(new FormData(event.currentTarget)).then(() => {
+                        event.currentTarget.reset();
+                      });
+                    }}
+                  >
+                    <label>
+                      <span>Dauer in Minuten</span>
+                      <input min={1} name="durationMinutes" type="number" required />
+                    </label>
+                    <label className="wide">
+                      <span>Notiz</span>
+                      <textarea name="note" rows={2} />
+                    </label>
+                    <button disabled={timeEntryMutation.isPending} type="submit">
+                      Zeit buchen
+                    </button>
+                  </form>
+                </>
+              ) : null}
             </div>
 
             <div className="stack">
@@ -312,6 +542,22 @@ export function TicketsPage() {
               ))}
               {!selectedTicket.activities?.length ? (
                 <p className="muted">Noch keine Timeline-Eintraege vorhanden.</p>
+              ) : null}
+
+              <div className="divider" />
+
+              <h4>Gebuchte Zeiten</h4>
+              {selectedTicket.timeEntries?.map((entry) => (
+                <div className="timeline-item" key={entry.id}>
+                  <strong>{entry.durationMinutes} Minuten</strong>
+                  <span className="muted">
+                    {entry.user?.name ?? "Unbekannt"} - {entry.createdAt.slice(0, 16)}
+                  </span>
+                  {entry.note ? <p>{entry.note}</p> : null}
+                </div>
+              ))}
+              {!selectedTicket.timeEntries?.length ? (
+                <p className="muted">Noch keine Zeiten erfasst.</p>
               ) : null}
             </div>
           </div>

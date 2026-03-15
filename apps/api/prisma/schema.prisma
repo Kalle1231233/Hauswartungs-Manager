@@ -1,0 +1,469 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  TECHNICIAN
+  RESIDENT
+  SERVICE_PROVIDER
+}
+
+enum PropertyType {
+  VILLA
+  MULTI_FAMILY
+  OTHER
+}
+
+enum TicketCategory {
+  DAMAGE
+  MAINTENANCE
+  INSPECTION
+  OTHER
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketStatus {
+  NEW
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_FOR_FEEDBACK
+  DONE
+  CLOSED
+}
+
+enum TicketActivityType {
+  CREATED
+  ASSIGNED
+  STATUS_CHANGED
+  COMMENTED
+  CHECKLIST_COMPLETED
+}
+
+enum MaintenanceCategory {
+  SMOKE_DETECTOR
+  HEATING
+  TREE_INSPECTION
+  STAIRWAY_INSPECTION
+  WINTER_SERVICE
+  OTHER
+}
+
+enum MaintenanceOccurrenceStatus {
+  PLANNED
+  GENERATED
+  COMPLETED
+  CANCELLED
+}
+
+enum ChecklistInstanceStatus {
+  OPEN
+  COMPLETED
+}
+
+model Organization {
+  id                   String                 @id @default(cuid())
+  name                 String
+  contactEmail         String
+  isActive             Boolean                @default(true)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  users                User[]
+  invitations          Invitation[]
+  properties           Property[]
+  units                Unit[]
+  residentAssignments  ResidentAssignment[]
+  propertyContacts     PropertyContact[]
+  propertyDocuments    PropertyDocument[]
+  tickets              Ticket[]
+  ticketActivities     TicketActivity[]
+  ticketAttachments    TicketAttachment[]
+  maintenancePlans     MaintenancePlan[]
+  maintenanceOccurrences MaintenanceOccurrence[]
+  checklistTemplates   ChecklistTemplate[]
+  checklistInstances   ChecklistInstance[]
+  checklistAttachments ChecklistAttachment[]
+  timeEntries          TimeEntry[]
+  auditLogs            AuditLog[]
+}
+
+model User {
+  id                    String                 @id @default(cuid())
+  organizationId        String?
+  organization          Organization?          @relation(fields: [organizationId], references: [id])
+  role                  Role
+  name                  String
+  email                 String                 @unique
+  passwordHash          String
+  isActive              Boolean                @default(true)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  invitedInvitations    Invitation[]           @relation("InvitationInvitedBy")
+  refreshSessions       RefreshSession[]
+  passwordResetTokens   PasswordResetToken[]
+  createdTickets        Ticket[]               @relation("TicketRequester")
+  responsibleTickets    Ticket[]               @relation("TicketResponsible")
+  ticketActivities      TicketActivity[]
+  timeEntries           TimeEntry[]
+  maintenancePlans      MaintenancePlan[]      @relation("MaintenanceResponsible")
+  createdMaintenancePlans MaintenancePlan[]    @relation("MaintenanceCreatedBy")
+  completedChecklists   ChecklistInstance[]    @relation("ChecklistCompletedBy")
+  uploadedPropertyDocuments PropertyDocument[] @relation("PropertyDocumentUploadedBy")
+  uploadedTicketAttachments TicketAttachment[] @relation("TicketAttachmentUploadedBy")
+  uploadedChecklistAttachments ChecklistAttachment[] @relation("ChecklistAttachmentUploadedBy")
+  residentAssignments   ResidentAssignment[]
+  auditLogs             AuditLog[]
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  email          String
+  role           Role
+  tokenHash      String       @unique
+  invitedById    String
+  invitedBy      User         @relation("InvitationInvitedBy", fields: [invitedById], references: [id])
+  acceptedAt     DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, email])
+}
+
+model RefreshSession {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model AuditLog {
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  actorUserId    String?
+  actorUser      User?         @relation(fields: [actorUserId], references: [id])
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+model Property {
+  id                   String               @id @default(cuid())
+  organizationId       String
+  organization         Organization         @relation(fields: [organizationId], references: [id])
+  name                 String
+  street               String
+  postalCode           String
+  city                 String
+  country              String
+  type                 PropertyType
+  yearBuilt            Int?
+  notes                String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  units                Unit[]
+  contacts             PropertyContact[]
+  documents            PropertyDocument[]
+  tickets              Ticket[]
+  maintenancePlans     MaintenancePlan[]
+  residentAssignments  ResidentAssignment[]
+  checklistInstances   ChecklistInstance[]
+  timeEntries          TimeEntry[]
+
+  @@index([organizationId, city])
+}
+
+model Unit {
+  id                  String               @id @default(cuid())
+  organizationId      String
+  organization        Organization         @relation(fields: [organizationId], references: [id])
+  propertyId          String
+  property            Property             @relation(fields: [propertyId], references: [id])
+  label               String
+  floor               String?
+  notes               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  tickets             Ticket[]
+  residentAssignments ResidentAssignment[]
+
+  @@index([organizationId, propertyId])
+}
+
+model ResidentAssignment {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  propertyId     String
+  property       Property     @relation(fields: [propertyId], references: [id])
+  unitId         String?
+  unit           Unit?        @relation(fields: [unitId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, userId])
+  @@unique([userId, propertyId, unitId])
+}
+
+model PropertyContact {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  propertyId     String
+  property       Property     @relation(fields: [propertyId], references: [id])
+  name           String
+  company        String?
+  email          String?
+  phone          String?
+  roleLabel      String
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, propertyId])
+}
+
+model PropertyDocument {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  propertyId     String
+  property       Property     @relation(fields: [propertyId], references: [id])
+  fileName       String
+  filePath       String
+  mimeType       String
+  uploadedById   String?
+  uploadedBy     User?        @relation("PropertyDocumentUploadedBy", fields: [uploadedById], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, propertyId])
+}
+
+model Ticket {
+  id                String            @id @default(cuid())
+  organizationId    String
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  propertyId        String
+  property          Property          @relation(fields: [propertyId], references: [id])
+  unitId            String?
+  unit              Unit?             @relation(fields: [unitId], references: [id])
+  title             String
+  description       String
+  category          TicketCategory
+  priority          TicketPriority
+  status            TicketStatus      @default(NEW)
+  dueDate           DateTime?
+  requesterUserId   String
+  requesterUser     User              @relation("TicketRequester", fields: [requesterUserId], references: [id])
+  responsibleUserId String?
+  responsibleUser   User?             @relation("TicketResponsible", fields: [responsibleUserId], references: [id])
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  closedAt          DateTime?
+  activities        TicketActivity[]
+  attachments       TicketAttachment[]
+  maintenanceOccurrences MaintenanceOccurrence[]
+  checklistInstances ChecklistInstance[]
+  timeEntries       TimeEntry[]
+
+  @@index([organizationId, propertyId, status])
+  @@index([organizationId, responsibleUserId])
+}
+
+model TicketActivity {
+  id             String             @id @default(cuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  ticketId       String
+  ticket         Ticket             @relation(fields: [ticketId], references: [id])
+  actorUserId    String?
+  actorUser      User?              @relation(fields: [actorUserId], references: [id])
+  type           TicketActivityType
+  message        String?
+  fromStatus     TicketStatus?
+  toStatus       TicketStatus?
+  createdAt      DateTime           @default(now())
+
+  @@index([organizationId, ticketId, createdAt])
+}
+
+model TicketAttachment {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  ticketId       String
+  ticket         Ticket       @relation(fields: [ticketId], references: [id])
+  fileName       String
+  filePath       String
+  mimeType       String
+  uploadedById   String?
+  uploadedBy     User?        @relation("TicketAttachmentUploadedBy", fields: [uploadedById], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, ticketId])
+}
+
+model MaintenancePlan {
+  id                String                @id @default(cuid())
+  organizationId    String
+  organization      Organization          @relation(fields: [organizationId], references: [id])
+  propertyId        String
+  property          Property              @relation(fields: [propertyId], references: [id])
+  title             String
+  category          MaintenanceCategory
+  description       String?
+  intervalMonths    Int
+  nextDueDate       DateTime
+  responsibleUserId String?
+  responsibleUser   User?                 @relation("MaintenanceResponsible", fields: [responsibleUserId], references: [id])
+  responsibleRole   Role?
+  isActive          Boolean               @default(true)
+  createdById       String
+  createdBy         User                  @relation("MaintenanceCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  occurrences       MaintenanceOccurrence[]
+
+  @@index([organizationId, propertyId, nextDueDate])
+}
+
+model MaintenanceOccurrence {
+  id                String                      @id @default(cuid())
+  organizationId    String
+  organization      Organization                @relation(fields: [organizationId], references: [id])
+  maintenancePlanId String
+  maintenancePlan   MaintenancePlan             @relation(fields: [maintenancePlanId], references: [id])
+  ticketId          String?
+  ticket            Ticket?                     @relation(fields: [ticketId], references: [id])
+  dueDate           DateTime
+  status            MaintenanceOccurrenceStatus @default(PLANNED)
+  createdAt         DateTime                    @default(now())
+  completedAt       DateTime?
+
+  @@index([organizationId, dueDate, status])
+}
+
+model ChecklistTemplate {
+  id             String                  @id @default(cuid())
+  organizationId String?
+  organization   Organization?           @relation(fields: [organizationId], references: [id])
+  name           String
+  categoryLabel  String
+  createdAt      DateTime                @default(now())
+  items          ChecklistTemplateItem[]
+  instances      ChecklistInstance[]
+
+  @@index([organizationId, categoryLabel])
+}
+
+model ChecklistTemplateItem {
+  id         String             @id @default(cuid())
+  templateId String
+  template   ChecklistTemplate  @relation(fields: [templateId], references: [id])
+  label      String
+  required   Boolean            @default(true)
+  sortOrder  Int
+  responses  ChecklistResponse[]
+
+  @@index([templateId, sortOrder])
+}
+
+model ChecklistInstance {
+  id             String                  @id @default(cuid())
+  organizationId String
+  organization   Organization            @relation(fields: [organizationId], references: [id])
+  templateId     String
+  template       ChecklistTemplate       @relation(fields: [templateId], references: [id])
+  ticketId       String
+  ticket         Ticket                  @relation(fields: [ticketId], references: [id])
+  propertyId     String
+  property       Property                @relation(fields: [propertyId], references: [id])
+  status         ChecklistInstanceStatus @default(OPEN)
+  summary        String?
+  completedById  String?
+  completedBy    User?                   @relation("ChecklistCompletedBy", fields: [completedById], references: [id])
+  completedAt    DateTime?
+  createdAt      DateTime                @default(now())
+  responses      ChecklistResponse[]
+  attachments    ChecklistAttachment[]
+
+  @@index([organizationId, ticketId, status])
+}
+
+model ChecklistResponse {
+  id             String                @id @default(cuid())
+  instanceId     String
+  instance       ChecklistInstance     @relation(fields: [instanceId], references: [id])
+  templateItemId String
+  templateItem   ChecklistTemplateItem @relation(fields: [templateItemId], references: [id])
+  checked        Boolean
+  comment        String?
+
+  @@unique([instanceId, templateItemId])
+}
+
+model ChecklistAttachment {
+  id                  String            @id @default(cuid())
+  organizationId      String
+  organization        Organization      @relation(fields: [organizationId], references: [id])
+  checklistInstanceId String
+  checklistInstance   ChecklistInstance @relation(fields: [checklistInstanceId], references: [id])
+  fileName            String
+  filePath            String
+  mimeType            String
+  uploadedById        String?
+  uploadedBy          User?             @relation("ChecklistAttachmentUploadedBy", fields: [uploadedById], references: [id])
+  createdAt           DateTime          @default(now())
+
+  @@index([organizationId, checklistInstanceId])
+}
+
+model TimeEntry {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  ticketId        String
+  ticket          Ticket       @relation(fields: [ticketId], references: [id])
+  propertyId      String
+  property        Property     @relation(fields: [propertyId], references: [id])
+  userId          String
+  user            User         @relation(fields: [userId], references: [id])
+  startedAt       DateTime?
+  endedAt         DateTime?
+  durationMinutes Int
+  note            String?
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId, propertyId, createdAt])
+  @@index([organizationId, userId, createdAt])
+}

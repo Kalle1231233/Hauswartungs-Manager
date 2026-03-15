@@ -10,3 +10,7 @@ apps/api/src/generated
 apps/api/prisma/dev.db
 apps/api/prisma/dev.db-journal
 packages/shared/src/*.js
+apps/web/src/**/*.js
+apps/web/*.js
+apps/web/*.d.ts
+apps/web/*.tsbuildinfo

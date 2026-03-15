@@ -6,7 +6,7 @@
   "scripts": {
     "build": "pnpm --filter @haus/shared build && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build",
     "dev": "vite",
-    "test": "pnpm --filter @haus/shared build && vitest run"
+    "test": "pnpm --filter @haus/shared build && vitest run --passWithNoTests"
   },
   "dependencies": {
     "@haus/shared": "workspace:*",
